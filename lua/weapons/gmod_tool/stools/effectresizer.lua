@@ -24,13 +24,13 @@ if CLIENT then
 		timer.Simple(0.25, function()	-- gotta delay this so that the NWVector arrives, how shitty is that?
 			local scale = effect:GetNWVector("RenderMultiplyMatrixScale", Vector( 1, 1, 1 ))
 
-			local nochange = (scale.x == 1 and scale.y == 1 and scale.z == 1)	-- disable matrix scaling altogether
+			local nochange = scale.x == 1 and scale.y == 1 and scale.z == 1	-- disable matrix scaling altogether
 
 			local xflat = (scale.x == 0) and 1 or 0
 			local yflat = (scale.y == 0) and 1 or 0
 			local zflat = (scale.z == 0) and 1 or 0
 
-			local tooflat = (xflat + yflat + zflat > 1)	-- only one axis is allowed to be flat (and even that's not really recommended)
+			local tooflat = xflat + yflat + zflat > 1	-- only one axis is allowed to be flat (and even that's not really recommended)
 
 			if nochange or tooflat then
 				effect:DisableMatrix("RenderMultiply")
