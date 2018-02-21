@@ -1,12 +1,21 @@
 AddCSLuaFile()
 
+local unique_name = "Effect Resizer 641848001"
+
 TOOL.Category = "Poser"
 TOOL.Name = "#tool.effectresizer.name"
+TOOL.Information = {
+		{ name = "left" },
+		{ name = "right" },
+		{ name = "reload" }
+}
 
 if CLIENT then
 	language.Add("tool.effectresizer.name", "Effect Resizer")
 	language.Add("tool.effectresizer.desc", "Resize Effects")
-	language.Add("tool.effectresizer.0", "Left Click to apply, Right Click to copy, Reload to reset")
+	language.Add("tool.effectresizer.left", "Resize an effect")
+	language.Add("tool.effectresizer.right", "Copy an effect's size")
+	language.Add("tool.effectresizer.reload", "Reset an effect's size to normal")
 end
 
 TOOL.ClientConVar.scale = 1
@@ -14,10 +23,22 @@ TOOL.ClientConVar.scalex = 1
 TOOL.ClientConVar.scaley = 1
 TOOL.ClientConVar.scalez = 1
 
+--[[-------------------------------------------------------------------------
+Register duplicator entity modifier
+---------------------------------------------------------------------------]]
+duplicator.RegisterEntityModifier(unique_name,
+CLIENT and function(ply, ent, scale)
+	print("THIS IS RUNNING IN CLIENT")
+	ent:EnableMatrix("RenderMultiply", scale)
+end or
+SERVER and function(ply, ent, scale)
 
-if SERVER then util.AddNetworkString("EffectResizeEntityMatrix") end
+end)
+
+
+if SERVER then util.AddNetworkString(unique_name) end
 if CLIENT then
-	net.Receive("EffectResizeEntityMatrix", function()
+	net.Receive(unique_name, function()
 		local effect = net.ReadEntity()
 		if not IsValid(effect) then return end
 
@@ -43,6 +64,9 @@ if CLIENT then
 	end)
 end
 
+--[[-------------------------------------------------------------------------
+Left-click - resize target effect
+---------------------------------------------------------------------------]]
 function TOOL:LeftClick( trace )
 	local ent = trace.Entity
 	if not IsValid(ent) then return false end
@@ -59,13 +83,16 @@ function TOOL:LeftClick( trace )
 
 	effect:SetNWVector("RenderMultiplyMatrixScale", scale)
 
-	net.Start("EffectResizeEntityMatrix")
+	net.Start(unique_name)
 		net.WriteEntity(effect)
 	net.Broadcast()
 
 	return true
 end
 
+--[[-------------------------------------------------------------------------
+Right-click - copy the target effect's settings
+---------------------------------------------------------------------------]]
 function TOOL:RightClick( trace )
 	local ent = trace.Entity
 	if not IsValid(ent) then return false end
@@ -101,7 +128,7 @@ function TOOL:Reload( trace )
 	local scale = Vector(1, 1, 1)
 	effect:SetNWVector("RenderMultiplyMatrixScale", scale)
 
-	net.Start("EffectResizeEntityMatrix")
+	net.Start(unique_name)
 		net.WriteEntity(effect)
 	net.Broadcast()
 
