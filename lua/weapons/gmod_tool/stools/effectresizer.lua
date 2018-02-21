@@ -1,6 +1,7 @@
 AddCSLuaFile()
 
 local unique_name = "Effect_Resizer_641848001"
+if SERVER then util.AddNetworkString(unique_name) end
 
 TOOL.Category = "Poser"
 TOOL.Name = "#tool.effectresizer.name"
@@ -23,9 +24,9 @@ TOOL.ClientConVar.scalex = 1
 TOOL.ClientConVar.scaley = 1
 TOOL.ClientConVar.scalez = 1
 
-local function SetDimensions(ply, ent, data)
+local function SetDimensions(ply, effect, data)
 	if CLIENT then
-		ent:EnableMatrix("RenderMultiply", data.dimensions)
+		ErrorNoHalt("How did I get here?")
 		return
 	end
 
@@ -42,12 +43,16 @@ local function SetDimensions(ply, ent, data)
 
 	if fullsize or tooflat then
 		-- bad/irrelevant scale
-		duplicator.ClearEntityModifier(ent, unique_name) -- I've checked the duplicator library source code, and removing a modifier while it's being run will not cause problems. It loops through available modifiers, not through the entity's modifiers.
+		effect:SetNW2Vector(unique_name, nil)
+		duplicator.ClearEntityModifier(effect, unique_name) -- I've checked the duplicator library source code, and removing a modifier while it's being run will not cause problems. It loops through available modifiers, not through the entity's modifiers.
 	else
-		duplicator.StoreEntityModifier(ent, unique_name, data)
+		effect:SetNW2Vector(unique_name, data.dimensions)
+		duplicator.StoreEntityModifier(effect, unique_name, data)
 	end
 
-
+	net.Start(unique_name)
+		net.WriteEntity(effect)
+	net.Broadcast()
 end
 
 --[[-------------------------------------------------------------------------
@@ -58,13 +63,22 @@ duplicator.RegisterEntityModifier(unique_name, SetDimensions)
 --[[-------------------------------------------------------------------------
 Server tells client of scale changes
 ---------------------------------------------------------------------------]]
-if SERVER then util.AddNetworkString(unique_name) end
 
 if CLIENT then
 	net.Receive(unique_name, function()
 		local effect = net.ReadEntity()
-		if not IsValid(effect) then return end
+		if not IsValid(effect) then error("Invalid entity!") end
 
+		local dims = effect:GetNW2Vector(unique_name, 0)
+		if dims == 0 then
+			effect:DisableMatrix("RenderMultiply")
+			return
+		end
+
+		local mult = Matrix()
+		mult:Scale(dims)
+		effect:EnableMatrix("RenderMultiply", mult)
+		--[[
 		timer.Simple(0.25, function()	-- gotta delay this so that the NWVector arrives, how shitty is that?
 			local scale = effect:GetNWVector("RenderMultiplyMatrixScale", Vector( 1, 1, 1 ))
 
@@ -84,6 +98,7 @@ if CLIENT then
 				effect:EnableMatrix( "RenderMultiply", mat )
 			end
 		end)
+		]]
 	end)
 end
 
@@ -102,15 +117,9 @@ function TOOL:LeftClick( trace )
 
 	effect:SetModelScale(self:GetClientNumber("scale"))
 
-	local scale = Vector(self:GetClientNumber("scalex"), self:GetClientNumber("scaley"), self:GetClientNumber("scalez"))
+	local dims = Vector(self:GetClientNumber("scalex"), self:GetClientNumber("scaley"), self:GetClientNumber("scalez"))
 
-	SetDimensions(self:GetOwner(), effect, {dimensions = scale})
-
-	effect:SetNWVector("RenderMultiplyMatrixScale", scale)
-
-	net.Start(unique_name)
-		net.WriteEntity(effect)
-	net.Broadcast()
+	SetDimensions(self:GetOwner(), effect, {dimensions = dims})
 
 	return true
 end
@@ -130,14 +139,17 @@ function TOOL:RightClick( trace )
 
 	self:GetOwner():ConCommand( "effectresizer_scale " .. effect:GetModelScale())
 
-	local scale = effect:GetNWVector("RenderMultiplyMatrixScale", Vector( 1, 1, 1 ))
-	self:GetOwner():ConCommand( "effectresizer_scalex " .. scale.x)
-	self:GetOwner():ConCommand( "effectresizer_scaley " .. scale.y)
-	self:GetOwner():ConCommand( "effectresizer_scalez " .. scale.z)
+	local dims = effect:GetNW2Vector(unique_name, Vector( 1, 1, 1 ))
+	self:GetOwner():ConCommand( "effectresizer_scalex " .. dims.x)
+	self:GetOwner():ConCommand( "effectresizer_scaley " .. dims.y)
+	self:GetOwner():ConCommand( "effectresizer_scalez " .. dims.z)
 
 	return true
 end
 
+--[[-------------------------------------------------------------------------
+Reload - reset target effect's scale to normal
+---------------------------------------------------------------------------]]
 function TOOL:Reload( trace )
 	local ent = trace.Entity
 	if not IsValid(ent) then return false end
@@ -149,13 +161,7 @@ function TOOL:Reload( trace )
 	if not IsValid(effect) then return false end
 
 	effect:SetModelScale(1)
-
-	local scale = Vector(1, 1, 1)
-	effect:SetNWVector("RenderMultiplyMatrixScale", scale)
-
-	net.Start(unique_name)
-		net.WriteEntity(effect)
-	net.Broadcast()
+	SetDimensions(self:GetOwner(), effect, {dimensions = Vector(1, 1, 1)})
 
 	return true
 end
