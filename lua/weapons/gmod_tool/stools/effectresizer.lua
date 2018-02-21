@@ -1,6 +1,6 @@
 AddCSLuaFile()
 
-local unique_name = "Effect Resizer 641848001"
+local unique_name = "Effect_Resizer_641848001"
 
 TOOL.Category = "Poser"
 TOOL.Name = "#tool.effectresizer.name"
@@ -23,20 +23,43 @@ TOOL.ClientConVar.scalex = 1
 TOOL.ClientConVar.scaley = 1
 TOOL.ClientConVar.scalez = 1
 
+local function SetDimensions(ply, ent, data)
+	if CLIENT then
+		ent:EnableMatrix("RenderMultiply", data.dimensions)
+		return
+	end
+
+	-- server
+	local dims = data.dimensions
+	local x, y, z = dims.x, dims.y, dims.z
+
+	local fullsize = x == 1 and y == 1 and z == 1 -- if all dimensions are 1, then there's no dimensions at all
+
+	local xflat = (x == 0) and 1 or 0
+	local yflat = (y == 0) and 1 or 0
+	local zflat = (z == 0) and 1 or 0
+	local tooflat = xflat + yflat + zflat > 1	-- only one axis is allowed to be flat, otherwise nothing is visible
+
+	if fullsize or tooflat then
+		-- bad/irrelevant scale
+		duplicator.ClearEntityModifier(ent, unique_name) -- I've checked the duplicator library source code, and removing a modifier while it's being run will not cause problems. It loops through available modifiers, not through the entity's modifiers.
+	else
+		duplicator.StoreEntityModifier(ent, unique_name, data)
+	end
+
+
+end
+
 --[[-------------------------------------------------------------------------
 Register duplicator entity modifier
 ---------------------------------------------------------------------------]]
-duplicator.RegisterEntityModifier(unique_name,
-CLIENT and function(ply, ent, scale)
-	print("THIS IS RUNNING IN CLIENT")
-	ent:EnableMatrix("RenderMultiply", scale)
-end or
-SERVER and function(ply, ent, scale)
+duplicator.RegisterEntityModifier(unique_name, SetDimensions)
 
-end)
-
-
+--[[-------------------------------------------------------------------------
+Server tells client of scale changes
+---------------------------------------------------------------------------]]
 if SERVER then util.AddNetworkString(unique_name) end
+
 if CLIENT then
 	net.Receive(unique_name, function()
 		local effect = net.ReadEntity()
@@ -80,6 +103,8 @@ function TOOL:LeftClick( trace )
 	effect:SetModelScale(self:GetClientNumber("scale"))
 
 	local scale = Vector(self:GetClientNumber("scalex"), self:GetClientNumber("scaley"), self:GetClientNumber("scalez"))
+
+	SetDimensions(self:GetOwner(), effect, {dimensions = scale})
 
 	effect:SetNWVector("RenderMultiplyMatrixScale", scale)
 
