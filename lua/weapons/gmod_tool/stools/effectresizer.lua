@@ -1,6 +1,8 @@
 AddCSLuaFile()
 
 local unique_name = "Effect_Resizer_641848001"
+local ANIM_LENGTH = 0.2
+local EASE = 0.5
 
 if SERVER then util.AddNetworkString(unique_name) end
 
@@ -25,7 +27,7 @@ TOOL.ClientConVar.scalex = 1
 TOOL.ClientConVar.scaley = 1
 TOOL.ClientConVar.scalez = 1
 
-local function SetDimensions(ply, effect, data)
+local function SetDimensions(ply, effect, data, scale)
 	if CLIENT then
 		ErrorNoHalt("How did I get here?")
 		return
@@ -33,6 +35,8 @@ local function SetDimensions(ply, effect, data)
 
 	-- server
 	if not IsValid(effect) then return end
+
+	if scale then effect:SetModelScale(scale, ANIM_LENGTH) end
 
 	local old_dims = effect:GetNW2Vector(unique_name, Vector(1, 1, 1))
 
@@ -47,7 +51,7 @@ local function SetDimensions(ply, effect, data)
 	local tooflat = xflat + yflat + zflat > 1	-- only one axis is allowed to be flat, otherwise nothing is visible
 
 	if fullsize or tooflat then
-		-- bad/irrelevant scale
+		-- bad/irrelevant dimensions
 		effect:SetNW2Vector(unique_name, nil)
 		duplicator.ClearEntityModifier(effect, unique_name) -- I've checked the duplicator library source code, and removing a modifier while it's being run will not cause problems. It loops through available modifiers, not through the entity's modifiers.
 	else
@@ -56,7 +60,7 @@ local function SetDimensions(ply, effect, data)
 	end
 
 	net.Start(unique_name)
-		net.WriteUInt(effect:EntIndex(), 16)	-- entity might not yet be valid clientside
+		net.WriteUInt(effect:EntIndex(), 16)	-- entity might not yet be valid clientside, so send as entity index
 		net.WriteVector(old_dims)
 		net.WriteVector(new_dims)
 	net.Broadcast()
@@ -115,9 +119,6 @@ if CLIENT then
 
 		SetEffectDimensions(ent, from_dims)
 	end
-
-	local ANIM_LENGTH = 0.2
-	local EASE = 0.5
 
 	--[[-------------------------------------------------------------------------
 	Handle animation
@@ -199,11 +200,9 @@ function TOOL:LeftClick( trace )
 	local effect = ent.AttachedEntity
 	if not IsValid(effect) then return false end -- sadly can't be synced with client, but it should never really happen anyway
 
-	effect:SetModelScale(self:GetClientNumber("scale"))
-
 	local dims = Vector(self:GetClientNumber("scalex"), self:GetClientNumber("scaley"), self:GetClientNumber("scalez"))
 
-	SetDimensions(self:GetOwner(), effect, {dimensions = dims})
+	SetDimensions(self:GetOwner(), effect, {dimensions = dims}, self:GetClientNumber("scale"))
 
 	return true
 end
@@ -244,8 +243,7 @@ function TOOL:Reload( trace )
 	local effect = ent.AttachedEntity
 	if not IsValid(effect) then return false end
 
-	effect:SetModelScale(1)
-	SetDimensions(self:GetOwner(), effect, {dimensions = Vector(1, 1, 1)})
+	SetDimensions(self:GetOwner(), effect, {dimensions = Vector(1, 1, 1)}, 1)
 
 	return true
 end
