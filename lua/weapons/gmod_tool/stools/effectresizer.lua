@@ -3,6 +3,7 @@ AddCSLuaFile()
 local unique_name = "Effect_Resizer_641848001"
 local ANIM_LENGTH = 0.2
 local EASE = 0.5
+local FULL_SIZE = Vector(1, 1, 1)
 
 if SERVER then util.AddNetworkString(unique_name) end
 
@@ -35,7 +36,7 @@ if SERVER then
 
 		if scale then effect:SetModelScale(scale, ANIM_LENGTH) end	-- only happens when called from the toolgun, not from duplicator library
 
-		local old_dims = effect:GetNW2Vector(unique_name, Vector(1, 1, 1))
+		local old_dims = effect:GetNW2Vector(unique_name, FULL_SIZE)
 
 		local new_dims = data.dimensions
 		local x, y, z = new_dims.x, new_dims.y, new_dims.z
@@ -50,6 +51,7 @@ if SERVER then
 		if fullsize or tooflat then
 			-- bad/irrelevant dimensions
 			effect:SetNW2Vector(unique_name, nil)
+			new_dims = FULL_SIZE
 			duplicator.ClearEntityModifier(effect, unique_name) -- I've checked the duplicator library source code, and removing a modifier while it's being run will not cause problems. It loops through available modifiers, not through the entity's modifiers.
 		else
 			effect:SetNW2Vector(unique_name, data.dimensions)
@@ -79,7 +81,7 @@ if CLIENT then
 		(this automatically converts it to a matrix and applies it to the effect)
 	---------------------------------------------------------------------------]]
 	local function SetEffectDimensions(ent, dims)
-		if not dims or dims == Vector(1, 1, 1) then
+		if not dims or dims == FULL_SIZE then
 			ent:DisableMatrix("RenderMultiply")
 		else
 			local mrx = Matrix()
@@ -233,7 +235,7 @@ function TOOL:RightClick( trace )
 
 	self:GetOwner():ConCommand( "effectresizer_scale " .. effect:GetModelScale())
 
-	local dims = effect:GetNW2Vector(unique_name, Vector( 1, 1, 1 ))
+	local dims = effect:GetNW2Vector(unique_name, FULL_SIZE)
 	self:GetOwner():ConCommand( "effectresizer_scalex " .. dims.x)
 	self:GetOwner():ConCommand( "effectresizer_scaley " .. dims.y)
 	self:GetOwner():ConCommand( "effectresizer_scalez " .. dims.z)
@@ -254,7 +256,7 @@ function TOOL:Reload( trace )
 	local effect = ent.AttachedEntity
 	if not IsValid(effect) then return false end
 
-	SetDimensions(self:GetOwner(), effect, {dimensions = Vector(1, 1, 1)}, 1)
+	SetDimensions(self:GetOwner(), effect, {dimensions = FULL_SIZE}, 1)
 
 	return true
 end
