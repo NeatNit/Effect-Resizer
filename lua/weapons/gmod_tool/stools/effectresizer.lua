@@ -27,49 +27,53 @@ TOOL.ClientConVar.scalex = 1
 TOOL.ClientConVar.scaley = 1
 TOOL.ClientConVar.scalez = 1
 
-local function SetDimensions(ply, effect, data, scale)
-	if CLIENT then
-		ErrorNoHalt("How did I get here?")
-		return
+local SetDimensions
+
+if SERVER then
+	function SetDimensions(ply, effect, data, scale)
+		if CLIENT then
+			ErrorNoHalt("How did I get here?")
+			return
+		end
+
+		-- server
+		if not IsValid(effect) then return end
+
+		if scale then effect:SetModelScale(scale, ANIM_LENGTH) end
+
+		local old_dims = effect:GetNW2Vector(unique_name, Vector(1, 1, 1))
+
+		local new_dims = data.dimensions
+		local x, y, z = new_dims.x, new_dims.y, new_dims.z
+
+		local fullsize = x == 1 and y == 1 and z == 1 -- if all dimensions are 1, then there's no dimensions at all
+
+		local xflat = (x == 0) and 1 or 0
+		local yflat = (y == 0) and 1 or 0
+		local zflat = (z == 0) and 1 or 0
+		local tooflat = xflat + yflat + zflat > 1	-- only one axis is allowed to be flat, otherwise nothing is visible
+
+		if fullsize or tooflat then
+			-- bad/irrelevant dimensions
+			effect:SetNW2Vector(unique_name, nil)
+			duplicator.ClearEntityModifier(effect, unique_name) -- I've checked the duplicator library source code, and removing a modifier while it's being run will not cause problems. It loops through available modifiers, not through the entity's modifiers.
+		else
+			effect:SetNW2Vector(unique_name, data.dimensions)
+			duplicator.StoreEntityModifier(effect, unique_name, data)
+		end
+
+		net.Start(unique_name)
+			net.WriteUInt(effect:EntIndex(), 16)	-- entity might not yet be valid clientside, so send as entity index
+			net.WriteVector(scale and old_dims or new_dims)	-- in general, this writes old_dims; However, if this was called from the duplicator library, I don't want the animation to play, so I send new_dims twice.
+			net.WriteVector(new_dims)
+		net.Broadcast()
 	end
 
-	-- server
-	if not IsValid(effect) then return end
-
-	if scale then effect:SetModelScale(scale, ANIM_LENGTH) end
-
-	local old_dims = effect:GetNW2Vector(unique_name, Vector(1, 1, 1))
-
-	local new_dims = data.dimensions
-	local x, y, z = new_dims.x, new_dims.y, new_dims.z
-
-	local fullsize = x == 1 and y == 1 and z == 1 -- if all dimensions are 1, then there's no dimensions at all
-
-	local xflat = (x == 0) and 1 or 0
-	local yflat = (y == 0) and 1 or 0
-	local zflat = (z == 0) and 1 or 0
-	local tooflat = xflat + yflat + zflat > 1	-- only one axis is allowed to be flat, otherwise nothing is visible
-
-	if fullsize or tooflat then
-		-- bad/irrelevant dimensions
-		effect:SetNW2Vector(unique_name, nil)
-		duplicator.ClearEntityModifier(effect, unique_name) -- I've checked the duplicator library source code, and removing a modifier while it's being run will not cause problems. It loops through available modifiers, not through the entity's modifiers.
-	else
-		effect:SetNW2Vector(unique_name, data.dimensions)
-		duplicator.StoreEntityModifier(effect, unique_name, data)
-	end
-
-	net.Start(unique_name)
-		net.WriteUInt(effect:EntIndex(), 16)	-- entity might not yet be valid clientside, so send as entity index
-		net.WriteVector(old_dims)
-		net.WriteVector(new_dims)
-	net.Broadcast()
+	--[[-------------------------------------------------------------------------
+	Register duplicator entity modifier
+	---------------------------------------------------------------------------]]
+	duplicator.RegisterEntityModifier(unique_name, SetDimensions)
 end
-
---[[-------------------------------------------------------------------------
-Register duplicator entity modifier
----------------------------------------------------------------------------]]
-duplicator.RegisterEntityModifier(unique_name, SetDimensions)
 
 --[[-------------------------------------------------------------------------
 Server tells client of scale changes
