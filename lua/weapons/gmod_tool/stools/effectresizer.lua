@@ -116,7 +116,8 @@ if CLIENT then
 		SetEffectDimensions(ent, from_dims)
 	end
 
-	local ANIM_LENGTH = 0.5
+	local ANIM_LENGTH = 0.2
+	local EASE = 0.5
 
 	--[[-------------------------------------------------------------------------
 	Handle animation
@@ -135,7 +136,7 @@ if CLIENT then
 					SetEffectDimensions(ent, data.to_dims)
 					animation_list[ent] = nil
 				else
-					SetEffectDimensions(ent, LerpVector(math.EaseInOut(progress, 0.1, 0.1), data.from_dims, data.to_dims))
+					SetEffectDimensions(ent, LerpVector(math.EaseInOut(progress, EASE, EASE), data.from_dims, data.to_dims))
 				end
 			end
 		end
