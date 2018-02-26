@@ -31,15 +31,9 @@ local SetDimensions
 
 if SERVER then
 	function SetDimensions(ply, effect, data, scale)
-		if CLIENT then
-			ErrorNoHalt("How did I get here?")
-			return
-		end
-
-		-- server
 		if not IsValid(effect) then return end
 
-		if scale then effect:SetModelScale(scale, ANIM_LENGTH) end
+		if scale then effect:SetModelScale(scale, ANIM_LENGTH) end	-- only happens when called from the toolgun, not from duplicator library
 
 		local old_dims = effect:GetNW2Vector(unique_name, Vector(1, 1, 1))
 
