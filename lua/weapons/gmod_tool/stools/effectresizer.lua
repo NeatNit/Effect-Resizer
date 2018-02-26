@@ -1,6 +1,7 @@
 AddCSLuaFile()
 
 local unique_name = "Effect_Resizer_641848001"
+
 if SERVER then util.AddNetworkString(unique_name) end
 
 TOOL.Category = "Poser"
@@ -31,8 +32,13 @@ local function SetDimensions(ply, effect, data)
 	end
 
 	-- server
-	local dims = data.dimensions
-	local x, y, z = dims.x, dims.y, dims.z
+
+	if not IsValid(effect) then return end
+
+	local old_dims = effect:GetNW2Vector(unique_name, Vector(1, 1, 1))
+
+	local new_dims = data.dimensions
+	local x, y, z = new_dims.x, new_dims.y, new_dims.z
 
 	local fullsize = x == 1 and y == 1 and z == 1 -- if all dimensions are 1, then there's no dimensions at all
 
@@ -51,7 +57,9 @@ local function SetDimensions(ply, effect, data)
 	end
 
 	net.Start(unique_name)
-		net.WriteEntity(effect)
+		net.WriteUInt(effect:EntIndex(), 16)	-- entity might not yet be valid clientside
+		net.WriteVector(old_dims)
+		net.WriteVector(new_dims)
 	net.Broadcast()
 end
 
@@ -65,40 +73,88 @@ Server tells client of scale changes
 ---------------------------------------------------------------------------]]
 
 if CLIENT then
-	net.Receive(unique_name, function()
-		local effect = net.ReadEntity()
-		if not IsValid(effect) then error("Invalid entity!") end
-
-		local dims = effect:GetNW2Vector(unique_name, 0)
-		if dims == 0 then
-			effect:DisableMatrix("RenderMultiply")
-			return
+	--[[-------------------------------------------------------------------------
+	SetEffectDimensions - scale an entity visually with a vector
+		(this automatically converts it to a matrix and applies it to the effect)
+	---------------------------------------------------------------------------]]
+	local function SetEffectDimensions(ent, dims)
+		if not dims or dims == Vector(1, 1, 1) then
+			ent:DisableMatrix("RenderMultiply")
+		else
+			local mrx = Matrix()
+			mrx:Scale(dims)
+			ent:EnableMatrix("RenderMultiply", mrx)
 		end
+	end
 
-		local mult = Matrix()
-		mult:Scale(dims)
-		effect:EnableMatrix("RenderMultiply", mult)
-		--[[
-		timer.Simple(0.25, function()	-- gotta delay this so that the NWVector arrives, how shitty is that?
-			local scale = effect:GetNWVector("RenderMultiplyMatrixScale", Vector( 1, 1, 1 ))
-
-			local nochange = scale.x == 1 and scale.y == 1 and scale.z == 1	-- disable matrix scaling altogether
-
-			local xflat = (scale.x == 0) and 1 or 0
-			local yflat = (scale.y == 0) and 1 or 0
-			local zflat = (scale.z == 0) and 1 or 0
-
-			local tooflat = xflat + yflat + zflat > 1	-- only one axis is allowed to be flat (and even that's not really recommended)
-
-			if nochange or tooflat then
-				effect:DisableMatrix("RenderMultiply")
-			else
-				local mat = Matrix()
-				mat:Scale( scale )
-				effect:EnableMatrix( "RenderMultiply", mat )
+	--[[-------------------------------------------------------------------------
+	On initial load, load entities' dimensions
+	---------------------------------------------------------------------------]]
+	hook.Add("InitPostEntity", unique_name, function()
+		for k, ent in pairs(ents.GetAll()) do
+			local dims = ent:GetNW2Vector(unique_name, 0)
+			if dims ~= 0 then
+				SetEffectDimensions(ent, dims)
 			end
-		end)
-		]]
+		end
+	end)
+
+	local animation_list = {}
+
+	--[[-------------------------------------------------------------------------
+	Start a resizing animation on an effect
+	---------------------------------------------------------------------------]]
+	local function StartAnimation(ent, from_dims, to_dims)
+		-- TO DO
+	end
+
+	--[[-------------------------------------------------------------------------
+	Handle animation
+	---------------------------------------------------------------------------]]
+	hook.Add("Think", unique_name, function()
+		for _, ent in pairs(animation_list) do
+			-- TO DO
+		end
+	end)
+
+	local waiting_list = {}
+
+	--[[-------------------------------------------------------------------------
+	Receive a new entity resize from the server
+	---------------------------------------------------------------------------]]
+	net.Receive(unique_name, function()
+		local ent_id = net.ReadUInt(16)
+		local old_dims = net.ReadVector()
+		local new_dims = net.ReadVector()
+
+		local effect = Entity(ent_id)
+
+		if IsValid(effect) then
+			StartAnimation(effect, old_dims, new_dims)
+		else
+			-- newly-created entity that hasn't been networked yet
+			waiting_list[ent_id] = {old = old_dims, new = new_dims}
+			-- give it a second, otherwise... WTF?
+			timer.Simple(1, function()
+				if waiting_list[ent_id] then
+					ErrorNoHalt("Effect Resizer: entity expected but it never came!")
+					waiting_list[ent_id] = nil
+				end
+			end)
+		end
+	end)
+
+	--[[-------------------------------------------------------------------------
+	Check new entities for waiting list
+	---------------------------------------------------------------------------]]
+	hook.Add("OnEntityCreated", unique_name, function(ent)
+		local id = ent:EntIndex()
+		local data = waiting_list[id]
+
+		if data then
+			StartAnimation(ent, data.old, data.new)
+			waiting_list[id] = nil
+		end
 	end)
 end
 
