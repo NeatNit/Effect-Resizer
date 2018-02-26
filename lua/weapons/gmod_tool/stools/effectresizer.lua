@@ -178,7 +178,7 @@ if CLIENT then
 	end)
 
 	--[[-------------------------------------------------------------------------
-	Check new entities for waiting list
+	Check new entities for waiting list, or for NW2Vector
 	---------------------------------------------------------------------------]]
 	hook.Add("OnEntityCreated", unique_name, function(ent)
 		local id = ent:EntIndex()
@@ -187,6 +187,19 @@ if CLIENT then
 		if new_dims then
 			SetEffectDimensions(ent, new_dims)
 			waiting_list[id] = nil
+			return
+		end
+
+		-- Might have the NWVar:
+		local dims = ent:GetNW2Vector(unique_name, 0)
+		if dims ~= 0 then
+			SetEffectDimensions(ent, dims)
+		else
+			-- NWVars can come after OnEntityCreated, so try again on the next think...
+			timer.Simple(0, function()
+				dims = ent:GetNW2Vector(unique_name, 0)
+				if dims ~= 0 then SetEffectDimensions(ent, dims) end
+			end)
 		end
 	end)
 end -- CLIENT
