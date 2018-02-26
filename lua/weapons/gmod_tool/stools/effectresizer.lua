@@ -32,7 +32,6 @@ local function SetDimensions(ply, effect, data)
 	end
 
 	-- server
-
 	if not IsValid(effect) then return end
 
 	local old_dims = effect:GetNW2Vector(unique_name, Vector(1, 1, 1))
@@ -99,24 +98,52 @@ if CLIENT then
 		end
 	end)
 
+	--[[=========================================================================
+	Resizing Animations
+	===========================================================================]]
 	local animation_list = {}
 
 	--[[-------------------------------------------------------------------------
 	Start a resizing animation on an effect
 	---------------------------------------------------------------------------]]
 	local function StartAnimation(ent, from_dims, to_dims)
-		-- TO DO
+		animation_list[ent] = {
+			start_time = CurTime(),
+			from_dims = from_dims,
+			to_dims = to_dims
+		}
+
+		SetEffectDimensions(ent, from_dims)
 	end
+
+	local ANIM_LENGTH = 0.5
 
 	--[[-------------------------------------------------------------------------
 	Handle animation
 	---------------------------------------------------------------------------]]
 	hook.Add("Think", unique_name, function()
-		for _, ent in pairs(animation_list) do
-			-- TO DO
+		if next(animation_list) == nil then return end -- nothing to do
+
+		local now = CurTime()
+
+		for ent, data in pairs(animation_list) do
+			if not IsValid(ent) then
+				animation_list[ent] = nil
+			else
+				local progress = (now - data.start_time) / ANIM_LENGTH
+				if progress >= 1 then	-- animation finished
+					SetEffectDimensions(ent, data.to_dims)
+					animation_list[ent] = nil
+				else
+					SetEffectDimensions(ent, LerpVector(math.EaseInOut(progress, 0.1, 0.1), data.from_dims, data.to_dims))
+				end
+			end
 		end
 	end)
 
+	--[[=========================================================================
+	Networking - client
+	===========================================================================]]
 	local waiting_list = {}
 
 	--[[-------------------------------------------------------------------------
@@ -133,7 +160,7 @@ if CLIENT then
 			StartAnimation(effect, old_dims, new_dims)
 		else
 			-- newly-created entity that hasn't been networked yet
-			waiting_list[ent_id] = {old = old_dims, new = new_dims}
+			waiting_list[ent_id] = new_dims
 			-- give it a second, otherwise... WTF?
 			timer.Simple(1, function()
 				if waiting_list[ent_id] then
@@ -149,14 +176,14 @@ if CLIENT then
 	---------------------------------------------------------------------------]]
 	hook.Add("OnEntityCreated", unique_name, function(ent)
 		local id = ent:EntIndex()
-		local data = waiting_list[id]
+		local new_dims = waiting_list[id]
 
-		if data then
-			StartAnimation(ent, data.old, data.new)
+		if new_dims then
+			SetEffectDimensions(ent, new_dims)
 			waiting_list[id] = nil
 		end
 	end)
-end
+end -- CLIENT
 
 --[[-------------------------------------------------------------------------
 Left-click - resize target effect
@@ -222,6 +249,9 @@ function TOOL:Reload( trace )
 	return true
 end
 
+--[[-------------------------------------------------------------------------
+BuildCPanel
+---------------------------------------------------------------------------]]
 function TOOL.BuildCPanel(CPanel)
 	CPanel:NumSlider("Scale: ", "effectresizer_scale", 0, 10)
 	CPanel:NumSlider("X Scale: ", "effectresizer_scalex", 0, 1)
