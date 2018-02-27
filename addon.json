@@ -1,0 +1,9 @@
+{
+	"title"		:	"Effect Resizer",
+	"type"		:	"tool",
+	"tags"		:	[ "scenic", "build" ],
+	"ignore"	:
+	[
+		".git/*"
+	]
+}
