@@ -163,10 +163,11 @@ if CLIENT then
 		else
 			-- newly-created entity that hasn't been networked yet
 			waiting_list[ent_id] = new_dims
-			-- give it a second, otherwise... WTF?
+
+			-- give it a second...
 			timer.Simple(1, function()
 				if waiting_list[ent_id] then
-					ErrorNoHalt("Effect Resizer: entity expected but it never came!")
+					-- If it still didn't show up, it must be outside of our PVS; Meaning, it's irrelevant. Remove it from the waiting list.
 					waiting_list[ent_id] = nil
 				end
 			end)
