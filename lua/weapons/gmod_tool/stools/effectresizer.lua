@@ -193,6 +193,7 @@ if CLIENT then
 		else
 			-- NWVars can come after OnEntityCreated, so try again on the next think...
 			timer.Simple(0, function()
+				if not IsValid(ent) then return end
 				dims = ent:GetNW2Vector(unique_name, 0)
 				if dims ~= 0 then SetEffectDimensions(ent, dims) end
 			end)
